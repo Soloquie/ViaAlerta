@@ -47,6 +47,11 @@ describe('Confirmaciones ciudadanas', () => {
 
     const avisos = await prisma.notificacion.findMany({ where: { usuarioId: 'usr_martin', reporteId, tipo: 'verificacion' } });
     expect(avisos).toHaveLength(1);
+
+    // Quitar y volver a poner el voto no repite el aviso.
+    await confirmar(vecinos[2].token, reporteId, 'reparado');
+    await confirmar(vecinos[2].token, reporteId, 'reparado');
+    expect(await prisma.notificacion.count({ where: { usuarioId: 'usr_martin', reporteId, tipo: 'verificacion' } })).toBe(1);
   });
 });
 

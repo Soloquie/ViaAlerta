@@ -3,7 +3,7 @@ import { ArrowLeft, X, Camera, RefreshCw, AlertTriangle, CheckCircle2, ChevronRi
 import { CategoriaReporte, Reporte, SeveridadReporte, Usuario } from '../types';
 import { CATEGORIAS, SEVERIDADES } from '../data/categories';
 import { ARMENIA_CENTER, formatFechaHora, reverseGeocode } from '../utils/geo';
-import { buscarDuplicado, crearReporte, registrarEvento } from '../api/servicios';
+import { buscarDuplicado, crearReporte, normalizarReporte, registrarEvento } from '../api/servicios';
 import { ErrorApi, mensajeDeError } from '../api/cliente';
 import { compressImage } from '../utils/imageCompressor';
 import { CategoryIcon } from './categoryIcons';
@@ -178,7 +178,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     } catch (error) {
       if (error instanceof ErrorApi && error.codigo === 'REPORTE_DUPLICADO' && error.datos.duplicado) {
         // Otro ciudadano publicó el mismo daño mientras se completaba el formulario.
-        setDuplicadoDetectado(error.datos.duplicado as Reporte);
+        setDuplicadoDetectado(normalizarReporte(error.datos.duplicado as Reporte));
       } else {
         setErrorEnvio(mensajeDeError(error));
       }

@@ -8,6 +8,8 @@ import { asegurarReporte, obtenerReporte } from './reportes.service.js';
 
 export type TipoConfirmacion = 'sigue' | 'reparado';
 
+export const TITULO_AVISO_REPARADO = 'La comunidad indica que el daño fue reparado';
+
 /**
  * Confirmación ciudadana "¿El daño sigue presente?".
  * Cada usuario tiene como máximo una confirmación por reporte:
@@ -22,20 +24,23 @@ export async function confirmarDanio(reporteId: string, usuarioId: string, tipo:
 
   const existente = await prisma.confirmacion.findUnique({ where: { reporteId_usuarioId: { reporteId, usuarioId } } });
   if (existente?.tipo === tipo) {
-    await prisma.confirmacion.delete({ where: { id: existente.id } });
+    // deleteMany no falla si un doble clic ya lo había retirado.
+    await prisma.confirmacion.deleteMany({ where: { id: existente.id } });
   } else if (existente) {
-    await prisma.confirmacion.update({ where: { id: existente.id }, data: { tipo, fecha: new Date() } });
+    await prisma.confirmacion.updateMany({ where: { id: existente.id }, data: { tipo, fecha: new Date() } });
   } else {
     await prisma.confirmacion.create({ data: { id: randomUUID(), reporteId, usuarioId, tipo, fecha: new Date() } });
   }
 
   const reparadoDespues = await prisma.confirmacion.count({ where: { reporteId, tipo: 'reparado' } });
-  if (reparadoAntes < UMBRAL_AVISO_REPARADO && reparadoDespues >= UMBRAL_AVISO_REPARADO) {
+  // El aviso se envía una sola vez por reporte (aunque alguien quite y vuelva a poner su voto).
+  const yaAvisado = await prisma.notificacion.count({ where: { reporteId, tipo: 'verificacion', titulo: TITULO_AVISO_REPARADO } });
+  if (reparadoAntes < UMBRAL_AVISO_REPARADO && reparadoDespues >= UMBRAL_AVISO_REPARADO && yaAvisado === 0) {
     const seguidores = await prisma.seguimientoReporte.findMany({ where: { reporteId }, select: { usuarioId: true } });
     await notificarVarios([reporte.autorId, ...seguidores.map((s) => s.usuarioId)], {
       tipo: 'verificacion',
       motivo: 'reporteSolucionado',
-      titulo: 'La comunidad indica que el daño fue reparado',
+      titulo: TITULO_AVISO_REPARADO,
       mensaje: `${reparadoDespues} vecinos indicaron que ${reporte.direccion} ya fue reparado. El estado del reporte no cambia automáticamente.`,
       reporteId,
     });

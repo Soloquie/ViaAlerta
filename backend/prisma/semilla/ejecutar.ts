@@ -65,10 +65,12 @@ export async function ejecutarSemilla(prisma: PrismaClient, opciones: OpcionesSe
       ciudad: usuario.ciudad,
       biografia: usuario.biografia,
     };
+    // La cuenta de demostración (Martín) es administradora: puede usar el modo demostración.
+    const rol = usuario.id === USUARIO_DEMO_ID ? ('admin' as const) : ('ciudadano' as const);
     await prisma.usuario.upsert({
       where: { id: usuario.id },
-      update: opciones.restablecerTodo ? datos : {},
-      create: { id: usuario.id, ...datos, contrasenaHash, aceptoTratamientoDatos: true, fechaAceptacionDatos: fechaAceptacion },
+      update: opciones.restablecerTodo ? { ...datos, rol } : usuario.id === USUARIO_DEMO_ID ? { rol } : {},
+      create: { id: usuario.id, ...datos, rol, contrasenaHash, aceptoTratamientoDatos: true, fechaAceptacionDatos: fechaAceptacion },
     });
     await prisma.preferenciaNotificacion.upsert({
       where: { usuarioId: usuario.id },

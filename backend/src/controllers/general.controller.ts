@@ -33,7 +33,6 @@ export async function estadoDemo(_request: Request, response: Response): Promise
 }
 
 export async function restablecerDemo(request: Request, response: Response): Promise<void> {
-  usuarioDe(request);
-  await demoService.restablecerDatos();
+  await demoService.restablecerDatos(usuarioDe(request));
   response.status(204).end();
 }

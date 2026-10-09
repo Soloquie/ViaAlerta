@@ -73,6 +73,8 @@ export interface Usuario {
   incidentesCount: number;
   actualizacionesCount: number;
   esUsuarioActual?: boolean;
+  /** Solo viene para el usuario de la sesión. "admin" habilita el modo demostración. */
+  rol?: 'ciudadano' | 'admin';
 }
 
 export interface AlertaVial {

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { env } from '../src/config/env.js';
-import { app, bearer, iniciarSesion, prisma, publicarReporte, reiniciarBaseDatos } from './ayudantes.js';
+import { app, bearer, iniciarSesion, prisma, publicarReporte, registrarCiudadano, reiniciarBaseDatos } from './ayudantes.js';
 
 let token: string;
 
@@ -41,6 +41,18 @@ describe('Modo demostración: avance de estados simulados', () => {
     await avanzar('rep_1');
     const despues = await prisma.notificacion.count({ where: { usuarioId: 'usr_curtis', reporteId: 'rep_1', tipo: 'estado' } });
     expect(despues).toBe(antes + 1);
+  });
+
+  it('solo un administrador puede avanzar estados o restablecer datos', async () => {
+    const ciudadano = await registrarCiudadano();
+    const avance = await request(app).post('/api/reportes/rep_2/avanzar-estado').set(...bearer(ciudadano.token));
+    expect(avance.status).toBe(403);
+    expect(avance.body.error.codigo).toBe('SOLO_ADMIN');
+    const restablecer = await request(app).post('/api/demo/restablecer').set(...bearer(ciudadano.token));
+    expect(restablecer.status).toBe(403);
+
+    const perfil = await request(app).get('/api/auth/yo').set(...bearer(token));
+    expect(perfil.body.rol).toBe('admin');
   });
 
   it('no está disponible si MODO_DEMO=false', async () => {

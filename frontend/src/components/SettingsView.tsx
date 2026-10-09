@@ -54,10 +54,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const handleAvanzar = async () => {
-    if (!selectedDemoReporteId || isDemoBusy) return;
+    // Se usa el reporte visible (el id elegido puede haber desaparecido tras restablecer los datos).
+    if (!selectedReporte || isDemoBusy) return;
     setIsDemoBusy(true);
     try {
-      await onAvanzarEstadoReporte(selectedDemoReporteId);
+      await onAvanzarEstadoReporte(selectedReporte.id);
       mostrarFeedback('¡Estado avanzado con éxito y notificación generada!');
     } catch (error) {
       setDemoFeedback(null);
@@ -206,6 +207,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
 
           {/* Section: MODO DEMOSTRACIÓN (CRÍTICO PARA EVALUACIÓN ACADÉMICA) */}
+          {usuario.rol === 'admin' && (
           <div className="space-y-2 p-4 rounded-2xl bg-sky-50/60 border border-[#0A9DC4]/30">
             <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
               <Sparkles className="w-4 h-4 text-[#0A9DC4]" />
@@ -220,7 +222,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Selecciona un reporte para avanzar:
               </label>
               <select
-                value={selectedDemoReporteId}
+                value={selectedReporte?.id ?? ''}
                 onChange={(e) => setSelectedDemoReporteId(e.target.value)}
                 className="w-full p-2.5 text-xs rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0A9DC4]"
               >
@@ -280,6 +282,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <span>Restablecer datos de prueba</span>
             </button>
           </div>
+          )}
 
           {/* Section: PRIVACIDAD Y SEGURIDAD */}
           <div className="space-y-1">

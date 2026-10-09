@@ -60,6 +60,12 @@ Requisitos: Node.js 20 o superior y MySQL 8 (con Docker o instalado localmente).
 
 Los demás usuarios de la semilla (`curtis.fair@email.com`, `michelle.b@email.com`, `valentina.ramos@email.com`) usan la misma contraseña. Si `MODO_DEMO=true`, la pantalla de inicio de sesión muestra el botón **Usar cuenta de demostración**.
 
+Martín tiene el rol `admin`, el único que puede usar el **modo demostración** (avanzar estados simulados y restablecer datos), porque esas acciones afectan los datos de toda la comunidad. Para dar ese rol a otra cuenta:
+
+```sql
+UPDATE usuarios SET rol = 'admin' WHERE correo = 'correo@ejemplo.com';
+```
+
 ### Probar desde el celular (misma red Wi-Fi)
 
 1. Busca la IP de tu PC (`ipconfig` en Windows), por ejemplo `192.168.1.20`.
@@ -98,11 +104,11 @@ Los demás usuarios de la semilla (`curtis.fair@email.com`, `michelle.b@email.co
 | Al publicar, el autor sigue el reporte y cuenta como la primera confirmación "sigue ahí". | `reportes.service.ts` |
 | Se avisa a los ciudadanos que han reportado a 1 km o menos (preferencia "reportes cerca"). | `reportes.service.ts` |
 | **Confirmaciones:** una por usuario y reporte. Repetir la misma opción la retira y elegir la otra la cambia. | `participacion.service.ts` |
-| Con 3 o más "ya fue reparado" se muestra el aviso comunitario y se notifica, **sin cambiar el estado**. | `participacion.service.ts` |
+| Con 3 o más "ya fue reparado" se muestra el aviso comunitario y se notifica una sola vez, **sin cambiar el estado**. | `participacion.service.ts` |
 | Seguir o dejar de seguir reportes y ciudadanos (operaciones idempotentes). | `participacion.service.ts`, `usuarios.service.ts` |
 | Los aportes notifican al autor ("nuevo comentario") y a los seguidores ("respuestas a comentarios"). | `participacion.service.ts` |
 | Las notificaciones respetan las preferencias de cada usuario y se agrupan en hoy, ayer y esta semana (hora de Colombia). | `notificaciones.service.ts` |
-| **Modo demo:** Reportado → En revisión → En proceso → Solucionado. Se detiene en Solucionado y los mensajes indican que es simulado. | `demo.service.ts` |
+| **Modo demo** (solo `admin` y con `MODO_DEMO=true`): Reportado → En revisión → En proceso → Solucionado. Se detiene en Solucionado y los mensajes indican que es simulado. | `demo.service.ts` |
 | Geocodificación inversa con caché en MySQL y máximo 1 solicitud por segundo a Nominatim. | `geocodificacion.service.ts` |
 | Límites de tasa en el inicio de sesión y en la creación de reportes. | `middlewares/limites.ts` |
 
@@ -172,7 +178,7 @@ Las pruebas usan Vitest y Supertest contra una base MySQL real (`DATABASE_URL_TE
    ```bash
    npm test
    ```
-   El comando aplica las migraciones en la base de pruebas, ejecuta los 55 casos y borra las fotos de prueba (`uploads-test/`).
+   El comando aplica las migraciones en la base de pruebas, ejecuta los 56 casos y borra las fotos de prueba (`uploads-test/`).
 
 Comprobación de tipos: `npm run lint` en `backend/` y en `frontend/`.
 

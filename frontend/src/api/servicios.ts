@@ -36,7 +36,7 @@ function normalizarUsuario(usuario: UsuarioApi): Usuario {
 
 type ReporteApi = Omit<Reporte, 'fechaIso'>;
 
-function normalizarReporte(reporte: ReporteApi): Reporte {
+export function normalizarReporte(reporte: ReporteApi): Reporte {
   return {
     ...reporte,
     fechaIso: reporte.fechaHora,

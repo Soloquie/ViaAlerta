@@ -7,7 +7,7 @@ import { crearNotificacion } from './notificaciones.service.js';
 
 type UsuarioBase = {
   id: string; nombre: string; usuario: string; correo: string; telefono: string | null;
-  fotoUrl: string | null; ciudad: string | null; biografia: string | null;
+  fotoUrl: string | null; ciudad: string | null; biografia: string | null; rol: 'ciudadano' | 'admin';
 };
 
 /**
@@ -54,6 +54,8 @@ async function aUsuariosDto(usuarios: UsuarioBase[], usuarioActualId?: string) {
     reportesSeguidos: seguidos.filter((s) => s.usuarioId === u.id).map((s) => s.reporteId),
     ...stats.get(u.id)!,
     esUsuarioActual: u.id === usuarioActualId,
+    // El rol solo se informa al propio usuario (habilita el modo demostración en la interfaz).
+    rol: u.id === usuarioActualId ? u.rol : undefined,
   }));
 }
 

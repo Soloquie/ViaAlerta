@@ -25,9 +25,17 @@ export const MENSAJES_SIMULADOS: Record<Exclude<EstadoReporte, 'reportado'>, str
   solucionado: 'Solución simulada: el daño se marcó como reparado.',
 };
 
-function exigirModoDemo(): void {
+/**
+ * Las acciones del modo demostración cambian datos de toda la comunidad,
+ * por eso exigen MODO_DEMO=true y un usuario con rol "admin" (en la semilla, la cuenta de Martín).
+ */
+async function exigirModoDemo(usuarioId: string): Promise<void> {
   if (!env.MODO_DEMO) {
     throw new ErrorApi(403, 'MODO_DEMO_INACTIVO', 'El modo demostración está desactivado en este servidor.');
+  }
+  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { rol: true } });
+  if (usuario?.rol !== 'admin') {
+    throw new ErrorApi(403, 'SOLO_ADMIN', 'Solo un administrador puede usar el modo demostración.');
   }
 }
 
@@ -36,7 +44,7 @@ function exigirModoDemo(): void {
  * El flujo es lineal y se detiene en "solucionado" (no vuelve a empezar).
  */
 export async function avanzarEstado(reporteId: string, usuarioId: string): Promise<ReporteDto> {
-  exigirModoDemo();
+  await exigirModoDemo(usuarioId);
   const reporte = await asegurarReporte(reporteId);
   const indice = ORDEN_ESTADOS.indexOf(reporte.estado);
   if (indice === ORDEN_ESTADOS.length - 1) {
@@ -44,12 +52,14 @@ export async function avanzarEstado(reporteId: string, usuarioId: string): Promi
   }
   const nuevoEstado = ORDEN_ESTADOS[indice + 1] as Exclude<EstadoReporte, 'reportado'>;
   const ahora = new Date();
-  await prisma.$transaction([
-    prisma.reporte.update({ where: { id: reporteId }, data: { estado: nuevoEstado } }),
-    prisma.historialEstado.create({
+  await prisma.$transaction(async (tx) => {
+    // Solo avanza si nadie cambió el estado mientras tanto (evita historial duplicado con dos clics seguidos).
+    const { count } = await tx.reporte.updateMany({ where: { id: reporteId, estado: reporte.estado }, data: { estado: nuevoEstado } });
+    if (count === 0) throw conflicto('ESTADO_CAMBIADO', 'El estado del reporte acaba de cambiar. Actualiza e inténtalo de nuevo.');
+    await tx.historialEstado.create({
       data: { id: randomUUID(), reporteId, estado: nuevoEstado, mensaje: MENSAJES_SIMULADOS[nuevoEstado], fecha: ahora, cambiadoPorId: usuarioId },
-    }),
-  ]);
+    });
+  });
 
   const seguidores = await prisma.seguimientoReporte.findMany({ where: { reporteId }, select: { usuarioId: true } });
   await notificarVarios([reporte.autorId, ...seguidores.map((s) => s.usuarioId)], {
@@ -63,8 +73,8 @@ export async function avanzarEstado(reporteId: string, usuarioId: string): Promi
 }
 
 /** Restablece los datos de demostración (reportes semilla, notificaciones y preferencias). */
-export async function restablecerDatos(): Promise<void> {
-  exigirModoDemo();
+export async function restablecerDatos(usuarioId: string): Promise<void> {
+  await exigirModoDemo(usuarioId);
   await ejecutarSemilla(prisma, { directorioUploads: env.DIRECTORIO_UPLOADS, restablecerTodo: true });
 }
 
