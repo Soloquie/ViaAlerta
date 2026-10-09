@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum RolUsuario {
+  ciudadano
+  admin
+}
+
+enum SeveridadReporte {
+  leve
+  moderado
+  critico
+}
+
+enum EstadoReporte {
+  reportado
+  en_revision
+  en_proceso
+  solucionado
+}
+
+enum TipoConfirmacion {
+  sigue
+  reparado
+}
+
+enum TipoNotificacion {
+  alerta
+  comentario
+  verificacion
+  estado
+  seguidor
+}
+
+enum EventoUso {
+  mapa_abierto
+  marcador_tocado
+  reporte_iniciado
+  reporte_paso_completado
+  reporte_publicado
+  reporte_seguido
+  confirmacion_enviada
+  mis_reportes_abierto
+  alerta_abierta
+}
+
+model Usuario {
+  id String @id @db.VarChar(36)
+  nombre String @db.VarChar(120)
+  usuario String @unique @db.VarChar(50)
+  correo String @unique @db.VarChar(150)
+  telefono String? @db.VarChar(30)
+  contrasenaHash String @map("contrasena_hash") @db.VarChar(255)
+  fotoUrl String? @map("foto_url") @db.VarChar(500)
+  ciudad String? @db.VarChar(120)
+  biografia String? @db.VarChar(500)
+  rol RolUsuario @default(ciudadano)
+  aceptoTratamientoDatos Boolean @map("acepto_tratamiento_datos")
+  fechaAceptacionDatos DateTime? @map("fecha_aceptacion_datos") @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  reportes Reporte[] @relation("autor_reportes")
+  cambiosEstado HistorialEstado[] @relation("cambiador_estado")
+  confirmaciones Confirmacion[]
+  seguimientosReporte SeguimientoReporte[]
+  sigueUsuarios SeguimientoUsuario[] @relation("seguidor")
+  seguidoPorUsuarios SeguimientoUsuario[] @relation("seguido")
+  aportes Aporte[]
+  notificaciones Notificacion[]
+  preferenciasNotificacion PreferenciaNotificacion?
+  eventosUso EventoUsoRegistro[]
+  @@map("usuarios")
+}
+
+model Categoria {
+  id String @id @db.VarChar(50)
+  nombre String @db.VarChar(100)
+  descripcion String @db.VarChar(255)
+  colorFondo String @map("color_fondo") @db.VarChar(10)
+  colorIcono String @map("color_icono") @db.VarChar(10)
+  colorBorde String @map("color_borde") @db.VarChar(10)
+  orden Int
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  subtipos Subtipo[]
+  reportes Reporte[]
+  @@map("categorias")
+}
+
+model Subtipo {
+  id String @id @db.VarChar(80)
+  categoriaId String @map("categoria_id") @db.VarChar(50)
+  nombre String @db.VarChar(120)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  categoria Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  reportes Reporte[]
+  @@unique([categoriaId, nombre])
+  @@map("subtipos")
+}
+
+model Reporte {
+  id String @id @db.VarChar(36)
+  autorId String @map("autor_id") @db.VarChar(36)
+  categoriaId String @map("categoria_id") @db.VarChar(50)
+  subtipoId String? @map("subtipo_id") @db.VarChar(80)
+  severidad SeveridadReporte
+  descripcion String @db.VarChar(200)
+  fotoUrl String @map("foto_url") @db.VarChar(500)
+  latitud Decimal @db.Decimal(9, 6)
+  longitud Decimal @db.Decimal(9, 6)
+  direccion String @db.VarChar(255)
+  estado EstadoReporte @default(reportado)
+  fechaReporte DateTime @map("fecha_reporte") @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  autor Usuario @relation("autor_reportes", fields: [autorId], references: [id], onDelete: Restrict)
+  categoria Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  subtipo Subtipo? @relation(fields: [subtipoId], references: [id], onDelete: SetNull)
+  historialEstados HistorialEstado[]
+  confirmaciones Confirmacion[]
+  seguimientos SeguimientoReporte[]
+  aportes Aporte[]
+  notificaciones Notificacion[]
+  @@index([categoriaId, estado])
+  @@index([latitud, longitud])
+  @@map("reportes")
+}
+
+model HistorialEstado {
+  id String @id @db.VarChar(36)
+  reporteId String @map("reporte_id") @db.VarChar(36)
+  estado EstadoReporte
+  mensaje String @db.VarChar(255)
+  fecha DateTime @db.DateTime(0)
+  cambiadoPorId String? @map("cambiado_por_id") @db.VarChar(36)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  reporte Reporte @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  cambiadoPor Usuario? @relation("cambiador_estado", fields: [cambiadoPorId], references: [id], onDelete: SetNull)
+  @@map("historial_estados")
+}
+
+model Confirmacion {
+  id String @id @db.VarChar(36)
+  reporteId String @map("reporte_id") @db.VarChar(36)
+  usuarioId String @map("usuario_id") @db.VarChar(36)
+  tipo TipoConfirmacion
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  reporte Reporte @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  @@unique([reporteId, usuarioId])
+  @@map("confirmaciones")
+}
+
+model SeguimientoReporte {
+  usuarioId String @map("usuario_id") @db.VarChar(36)
+  reporteId String @map("reporte_id") @db.VarChar(36)
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  reporte Reporte @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  @@id([usuarioId, reporteId])
+  @@map("seguimientos_reporte")
+}
+
+model SeguimientoUsuario {
+  seguidorId String @map("seguidor_id") @db.VarChar(36)
+  seguidoId String @map("seguido_id") @db.VarChar(36)
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  seguidor Usuario @relation("seguidor", fields: [seguidorId], references: [id], onDelete: Cascade)
+  seguido Usuario @relation("seguido", fields: [seguidoId], references: [id], onDelete: Cascade)
+  @@id([seguidorId, seguidoId])
+  @@map("seguimientos_usuario")
+}
+
+model Aporte {
+  id String @id @db.VarChar(36)
+  reporteId String @map("reporte_id") @db.VarChar(36)
+  autorId String @map("autor_id") @db.VarChar(36)
+  texto String @db.VarChar(500)
+  fotoUrl String? @map("foto_url") @db.VarChar(500)
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  reporte Reporte @relation(fields: [reporteId], references: [id], onDelete: Cascade)
+  autor Usuario @relation(fields: [autorId], references: [id], onDelete: Restrict)
+  @@map("aportes")
+}
+
+model Notificacion {
+  id String @id @db.VarChar(36)
+  usuarioId String @map("usuario_id") @db.VarChar(36)
+  tipo TipoNotificacion
+  titulo String @db.VarChar(150)
+  mensaje String @db.VarChar(500)
+  reporteId String? @map("reporte_id") @db.VarChar(36)
+  leida Boolean @default(false)
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  reporte Reporte? @relation(fields: [reporteId], references: [id], onDelete: SetNull)
+  @@index([usuarioId, leida, fecha])
+  @@map("notificaciones")
+}
+
+model PreferenciaNotificacion {
+  usuarioId String @id @map("usuario_id") @db.VarChar(36)
+  nuevoComentario Boolean @default(true) @map("nuevo_comentario")
+  actualizacionEstado Boolean @default(true) @map("actualizacion_estado")
+  reporteSolucionado Boolean @default(true) @map("reporte_solucionado")
+  reportesCerca Boolean @default(true) @map("reportes_cerca")
+  respuestasComentarios Boolean @default(true) @map("respuestas_comentarios")
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  @@map("preferencias_notificacion")
+}
+
+model AlertaVial {
+  id String @id @db.VarChar(36)
+  titulo String @db.VarChar(150)
+  descripcion String @db.VarChar(1000)
+  sector String @db.VarChar(150)
+  municipio String @db.VarChar(150)
+  latitud Decimal @db.Decimal(9, 6)
+  longitud Decimal @db.Decimal(9, 6)
+  rutaAlterna String? @map("ruta_alterna") @db.VarChar(255)
+  lineaEmergencias String? @map("linea_emergencias") @db.VarChar(100)
+  hashtag String? @db.VarChar(80)
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  @@map("alertas_viales")
+}
+
+model CacheGeocodificacion {
+  clave String @id @db.VarChar(30)
+  direccion String @db.VarChar(255)
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  @@map("cache_geocodificacion")
+}
+
+model EventoUsoRegistro {
+  id String @id @db.VarChar(36)
+  usuarioId String? @map("usuario_id") @db.VarChar(36)
+  evento EventoUso
+  datos Json?
+  fecha DateTime @db.DateTime(0)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.DateTime(0)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.DateTime(0)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  @@index([evento, fecha])
+  @@map("eventos_uso")
+}
