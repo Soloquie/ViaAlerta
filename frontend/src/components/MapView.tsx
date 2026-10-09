@@ -5,6 +5,7 @@ import { CategoriaReporte, Reporte } from '../types';
 import { CATEGORIAS, ESTADOS, SEVERIDADES } from '../data/categories';
 import { ARMENIA_CENTER } from '../utils/geo';
 import { CategoryIcon, getCategorySvgHtml } from './categoryIcons';
+import { registrarEvento } from '../api/servicios';
 
 interface MapViewProps {
   reportes: Reporte[];
@@ -35,6 +36,16 @@ export const MapView: React.FC<MapViewProps> = ({
   const [activeReporte, setActiveReporte] = useState<Reporte | null>(null);
   const [locationNotice, setLocationNotice] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
+
+  // Métrica: apertura del mapa
+  useEffect(() => {
+    registrarEvento('mapa_abierto');
+  }, []);
+
+  // Mantener la tarjeta de vista previa sincronizada con los datos del servidor (seguir, confirmaciones...)
+  useEffect(() => {
+    setActiveReporte((actual) => (actual ? reportes.find((r) => r.id === actual.id) ?? null : null));
+  }, [reportes]);
 
   // Sync selectedReporteId prop
   useEffect(() => {
@@ -157,6 +168,7 @@ export const MapView: React.FC<MapViewProps> = ({
       marker.on('click', (e) => {
         L.DomEvent.stopPropagation(e);
         setActiveReporte(reporte);
+        registrarEvento('marcador_tocado', { reporteId: reporte.id, categoria: reporte.categoria });
         if (mapInstanceRef.current) {
           mapInstanceRef.current.panTo([reporte.ubicacion.lat, reporte.ubicacion.lng], { animate: true });
         }

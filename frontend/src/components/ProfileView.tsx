@@ -6,7 +6,8 @@ import { compressImage } from '../utils/imageCompressor';
 interface ProfileViewProps {
   usuario: Usuario;
   onClose: () => void;
-  onUpdateUsuario: (updated: Usuario) => void;
+  /** Guarda el perfil en el backend; debe lanzar un error si no se pudo guardar. */
+  onUpdateUsuario: (updated: Usuario) => Promise<void>;
   onGoToMyReports: () => void;
 }
 
@@ -28,6 +29,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [biografia, setBiografia] = useState<string>(usuario.biografia);
   const [foto, setFoto] = useState<string>(usuario.foto);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -44,8 +47,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     const updated: Usuario = {
       ...usuario,
       nombre,
@@ -56,12 +60,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       biografia,
       foto,
     };
-    onUpdateUsuario(updated);
-    setSaveSuccess(true);
-    setTimeout(() => {
-      setSaveSuccess(false);
-      setIsEditing(false);
-    }, 800);
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onUpdateUsuario(updated);
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+        setIsEditing(false);
+      }, 800);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'No se pudieron guardar los cambios.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -279,12 +291,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
             </div>
 
-            <div className="pt-3">
+            <div className="pt-3 space-y-2">
+              {saveError && (
+                <p role="alert" className="p-2 rounded-xl bg-red-50 border border-red-200 text-[11px] font-semibold text-red-700">
+                  {saveError}
+                </p>
+              )}
               <button
                 type="submit"
-                className="w-full min-h-[48px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white font-bold text-xs shadow-md transition-transform active:scale-98"
+                disabled={isSaving}
+                className="w-full min-h-[48px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white font-bold text-xs shadow-md transition-transform active:scale-98 disabled:opacity-70 disabled:cursor-wait"
               >
-                {saveSuccess ? '¡Cambios guardados!' : 'Guardar cambios'}
+                {saveSuccess ? '¡Cambios guardados!' : isSaving ? 'Guardando…' : 'Guardar cambios'}
               </button>
             </div>
           </form>

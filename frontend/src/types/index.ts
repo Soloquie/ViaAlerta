@@ -18,6 +18,7 @@ export interface HistorialEstado {
 
 export interface AporteCiudadano {
   id: string;
+  autorId?: string;
   autor: string;
   autorFoto?: string;
   texto: string;
@@ -40,6 +41,8 @@ export interface Reporte {
   foto: string;
   ubicacion: Ubicacion;
   fechaHora: string;
+  /** Fecha original en ISO (UTC), útil para ordenar. `fechaHora` es el texto ya formateado. */
+  fechaIso?: string;
   autorId: string;
   autorNombre: string;
   autorUsuario: string;
@@ -48,6 +51,8 @@ export interface Reporte {
   historial: HistorialEstado[];
   confirmacionesSigue: number;
   confirmacionesReparado: number;
+  /** Calculado por el backend: 3 o más vecinos indicaron "ya fue reparado". */
+  comunidadIndicaReparado?: boolean;
   seguidores: string[]; // user IDs
   aportes: AporteCiudadano[];
   usuarioConfirmo?: 'sigue' | 'reparado' | null;

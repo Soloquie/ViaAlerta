@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronRight, PlusCircle, AlertCircle } from 'lucide-react';
 import { Reporte, Usuario } from '../types';
 import { CATEGORIAS, ESTADOS, SEVERIDADES } from '../data/categories';
 import { CategoryIcon } from './categoryIcons';
+import { registrarEvento } from '../api/servicios';
 
 interface MyReportsViewProps {
   reportes: Reporte[];
@@ -18,6 +19,10 @@ export const MyReportsView: React.FC<MyReportsViewProps> = ({
   onStartReport,
 }) => {
   const [filtro, setFiltro] = useState<'todos' | 'activos' | 'solucionados'>('todos');
+
+  useEffect(() => {
+    registrarEvento('mis_reportes_abierto');
+  }, []);
 
   // Filter reports authored by the current user
   const misReportes = reportes.filter((r) => r.autorId === usuario.id);

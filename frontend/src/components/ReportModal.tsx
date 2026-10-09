@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, X, Camera, RefreshCw, AlertTriangle, CheckCircle2, ChevronRight, MapPin, Edit3 } from 'lucide-react';
 import { CategoriaReporte, Reporte, SeveridadReporte, Usuario } from '../types';
 import { CATEGORIAS, SEVERIDADES } from '../data/categories';
-import { ARMENIA_CENTER, calcularDistanciaMetros, formatFechaHora, reverseGeocode } from '../utils/geo';
+import { ARMENIA_CENTER, formatFechaHora, reverseGeocode } from '../utils/geo';
+import { buscarDuplicado, crearReporte, registrarEvento } from '../api/servicios';
+import { ErrorApi, mensajeDeError } from '../api/cliente';
 import { compressImage } from '../utils/imageCompressor';
 import { CategoryIcon } from './categoryIcons';
 import { MiniMap } from './MiniMap';
@@ -11,7 +13,6 @@ interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   usuario: Usuario;
-  reportesExistentes: Reporte[];
   onReporteCreado: (nuevoReporte: Reporte) => void;
   onConfirmarExistente: (reporteExistenteId: string) => void;
 }
@@ -19,8 +20,6 @@ interface ReportModalProps {
 export const ReportModal: React.FC<ReportModalProps> = ({
   isOpen,
   onClose,
-  usuario,
-  reportesExistentes,
   onReporteCreado,
   onConfirmarExistente,
 }) => {
@@ -38,6 +37,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [showConfirmacionExitosa, setShowConfirmacionExitosa] = useState<boolean>(false);
   const [reporteGenerado, setReporteGenerado] = useState<Reporte | null>(null);
   const [isLocatingGPS, setIsLocatingGPS] = useState<boolean>(false);
+  const [isVerificando, setIsVerificando] = useState<boolean>(false);
+  const [isPublicando, setIsPublicando] = useState<boolean>(false);
+  const [publicarDeTodosModos, setPublicarDeTodosModos] = useState<boolean>(false);
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,6 +57,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       setDuplicadoDetectado(null);
       setShowConfirmacionExitosa(false);
       setReporteGenerado(null);
+      setPublicarDeTodosModos(false);
+      setErrorEnvio(null);
+      setIsPublicando(false);
+      setIsVerificando(false);
+      registrarEvento('reporte_iniciado');
 
       // Attempt to get user GPS position
       if (navigator.geolocation) {
@@ -79,6 +87,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       }
     }
   }, [isOpen]);
+
+  // Métrica: cada vez que se avanza a un paso nuevo del flujo de reporte
+  useEffect(() => {
+    if (isOpen && paso > 1) registrarEvento('reporte_paso_completado', { paso: paso - 1 });
+  }, [paso, isOpen]);
 
   if (!isOpen) return null;
 
@@ -106,34 +119,29 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     }
   };
 
-  // Duplicate detection logic (< 30 meters, same category, active status)
-  const checkForDuplicates = (): Reporte | null => {
-    if (!categoria) return null;
-
-    for (const r of reportesExistentes) {
-      if (r.categoria === categoria && r.estado !== 'solucionado') {
-        const dist = calcularDistanciaMetros(coords.lat, coords.lng, r.ubicacion.lat, r.ubicacion.lng);
-        if (dist <= 30) {
-          return r;
-        }
-      }
-    }
-    return null;
-  };
-
-  // Next from Step 3 -> check duplicates -> Step 4
-  const handleAvanzarAPaso4 = () => {
+  // Next from Step 3 -> el backend verifica duplicados (misma categoría, activo, a 30 m o menos) -> Step 4
+  const handleAvanzarAPaso4 = async () => {
     if (!foto) {
       setFotoError('La fotografía del daño es obligatoria para verificar el reporte.');
       return;
     }
     setFotoError(null);
+    if (!categoria) return;
 
-    const dup = checkForDuplicates();
-    if (dup) {
-      setDuplicadoDetectado(dup);
-    } else {
+    setIsVerificando(true);
+    try {
+      const dup = await buscarDuplicado(categoria, coords.lat, coords.lng);
+      if (dup) {
+        setDuplicadoDetectado(dup);
+      } else {
+        setPublicarDeTodosModos(false);
+        setPaso(4);
+      }
+    } catch {
+      // Si la verificación falla se continúa: el backend vuelve a validar al publicar.
       setPaso(4);
+    } finally {
+      setIsVerificando(false);
     }
   };
 
@@ -146,45 +154,37 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   // Publish report
-  const handlePublicar = () => {
-    if (!categoria || !severidad || !foto) return;
+  const handlePublicar = async () => {
+    if (!categoria || !severidad || !foto || isPublicando) return;
 
-    const fechaActual = formatFechaHora();
-    const nuevoReporte: Reporte = {
-      id: `rep_${Date.now()}`,
-      categoria,
-      subtipo: subtipo || undefined,
-      severidad,
-      descripcion: descripcion.trim() || 'Reporte de daño vial registrado por la comunidad.',
-      foto,
-      ubicacion: {
+    setIsPublicando(true);
+    setErrorEnvio(null);
+    try {
+      const nuevoReporte = await crearReporte({
+        categoria,
+        subtipo: subtipo || undefined,
+        severidad,
+        descripcion,
         lat: coords.lat,
         lng: coords.lng,
         direccion: direccion || 'Armenia, Quindío',
-      },
-      fechaHora: fechaActual,
-      autorId: usuario.id,
-      autorNombre: usuario.nombre,
-      autorUsuario: usuario.usuario,
-      autorFoto: usuario.foto,
-      estado: 'reportado',
-      historial: [
-        {
-          estado: 'reportado',
-          fecha: fechaActual,
-          mensaje: 'Tu reporte se publicó en el mapa y en la red ciudadana.',
-        },
-      ],
-      confirmacionesSigue: 1,
-      confirmacionesReparado: 0,
-      seguidores: [usuario.id],
-      aportes: [],
-      usuarioConfirmo: 'sigue',
-    };
-
-    setReporteGenerado(nuevoReporte);
-    onReporteCreado(nuevoReporte);
-    setShowConfirmacionExitosa(true);
+        foto,
+        forzar: publicarDeTodosModos,
+      });
+      setReporteGenerado(nuevoReporte);
+      onReporteCreado(nuevoReporte);
+      registrarEvento('reporte_publicado', { categoria, severidad });
+      setShowConfirmacionExitosa(true);
+    } catch (error) {
+      if (error instanceof ErrorApi && error.codigo === 'REPORTE_DUPLICADO' && error.datos.duplicado) {
+        // Otro ciudadano publicó el mismo daño mientras se completaba el formulario.
+        setDuplicadoDetectado(error.datos.duplicado as Reporte);
+      } else {
+        setErrorEnvio(mensajeDeError(error));
+      }
+    } finally {
+      setIsPublicando(false);
+    }
   };
 
   // Categorías array for grid
@@ -247,7 +247,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <h2 className="text-4xl font-extrabold text-[#0A7FA3] tracking-tight">Gracias</h2>
               <p className="text-xl font-medium text-slate-700 mt-2">¡por tu contribución!</p>
               <p className="text-xs text-slate-500 max-w-xs mt-4">
-                Tu reporte ya está visible para toda la comunidad de Armenia y las autoridades en el mapa.
+                Tu reporte ya está visible en el mapa para toda la comunidad de Armenia.
               </p>
             </div>
 
@@ -319,6 +319,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <button
                 onClick={() => {
                   setDuplicadoDetectado(null);
+                  setPublicarDeTodosModos(true);
                   setPaso(4);
                 }}
                 className="w-full min-h-[44px] rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
@@ -791,21 +792,39 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 <button
                   type="button"
                   onClick={handleAvanzarAPaso4}
-                  className="w-full min-h-[48px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-transform active:scale-98"
+                  disabled={isVerificando}
+                  className="w-full min-h-[48px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-transform active:scale-98 disabled:opacity-70 disabled:cursor-wait"
                 >
-                  <span>Continuar a revisión</span>
-                  <ChevronRight className="w-4 h-4" />
+                  {isVerificando ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Verificando reportes cercanos…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Continuar a revisión</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               )}
 
               {paso === 4 && (
                 <div className="space-y-2">
+                  {errorEnvio && (
+                    <div role="alert" className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-[11px] font-semibold text-red-700 flex items-start gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{errorEnvio}</span>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={handlePublicar}
-                    className="w-full min-h-[50px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white font-bold text-sm shadow-lg shadow-[#0A9DC4]/25 transition-transform active:scale-98 flex items-center justify-center gap-2"
+                    disabled={isPublicando}
+                    className="w-full min-h-[50px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white font-bold text-sm shadow-lg shadow-[#0A9DC4]/25 transition-transform active:scale-98 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait"
                   >
-                    <span>Publicar reporte</span>
+                    {isPublicando && <RefreshCw className="w-4 h-4 animate-spin" />}
+                    <span>{isPublicando ? 'Publicando…' : 'Publicar reporte'}</span>
                   </button>
 
                   <button

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { X, Camera, Send, MessageSquarePlus, RefreshCw } from 'lucide-react';
-import { AporteCiudadano, Reporte, Usuario } from '../types';
+import { Reporte, Usuario } from '../types';
 import { CATEGORIAS } from '../data/categories';
 import { compressImage } from '../utils/imageCompressor';
 
@@ -9,19 +9,20 @@ interface ContributeModalProps {
   onClose: () => void;
   reporte: Reporte;
   usuario: Usuario;
-  onAddAporte: (reporteId: string, aporte: AporteCiudadano) => void;
+  /** Publica el aporte en el backend; debe lanzar un error si no se pudo guardar. */
+  onAddAporte: (reporteId: string, texto: string, foto: string | null) => Promise<void>;
 }
 
 export const ContributeModal: React.FC<ContributeModalProps> = ({
   isOpen,
   onClose,
   reporte,
-  usuario,
   onAddAporte,
 }) => {
   const [texto, setTexto] = useState<string>('');
   const [foto, setFoto] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
@@ -37,25 +38,22 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!texto.trim()) return;
+    if (!texto.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
-    const nuevoAporte: AporteCiudadano = {
-      id: `ap_${Date.now()}`,
-      autor: usuario.nombre,
-      autorFoto: usuario.foto,
-      texto: texto.trim(),
-      foto: foto || undefined,
-      fecha: 'Ahora mismo',
-    };
-
-    onAddAporte(reporte.id, nuevoAporte);
-    setIsSubmitting(false);
-    setTexto('');
-    setFoto(null);
-    onClose();
+    setErrorEnvio(null);
+    try {
+      await onAddAporte(reporte.id, texto.trim(), foto);
+      setTexto('');
+      setFoto(null);
+      onClose();
+    } catch (error) {
+      setErrorEnvio(error instanceof Error ? error.message : 'No se pudo publicar el aporte.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const cat = CATEGORIAS[reporte.categoria];
@@ -147,7 +145,12 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
             )}
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
+            {errorEnvio && (
+              <p role="alert" className="p-2 rounded-xl bg-red-50 border border-red-200 text-[11px] font-semibold text-red-700">
+                {errorEnvio}
+              </p>
+            )}
             <button
               type="submit"
               disabled={!texto.trim() || isSubmitting}
@@ -157,8 +160,8 @@ export const ContributeModal: React.FC<ContributeModalProps> = ({
                   : 'bg-slate-200 text-slate-400 cursor-not-allowed'
               }`}
             >
-              <Send className="w-4 h-4" />
-              <span>Publicar aporte</span>
+              {isSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <span>{isSubmitting ? 'Publicando…' : 'Publicar aporte'}</span>
             </button>
           </div>
         </form>

@@ -9,8 +9,13 @@ interface SettingsViewProps {
   onClose: () => void;
   onOpenProfile: () => void;
   onOpenMyReports: () => void;
-  onAvanzarEstadoReporte: (reporteId: string) => void;
-  onResetDatos: () => void;
+  /** Avanza el estado simulado en el backend; lanza un error con mensaje en español si no es posible. */
+  onAvanzarEstadoReporte: (reporteId: string) => Promise<void>;
+  onResetDatos: () => Promise<void>;
+  onCambiarContrasena: (actual: string, nueva: string) => Promise<void>;
+  onCerrarSesion: () => void;
+  /** Indica si el servidor tiene activo MODO_DEMO. */
+  modoDemo: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -21,22 +26,75 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenMyReports,
   onAvanzarEstadoReporte,
   onResetDatos,
+  onCambiarContrasena,
+  onCerrarSesion,
+  modoDemo,
 }) => {
   const [selectedDemoReporteId, setSelectedDemoReporteId] = useState<string>(
     reportes.find((r) => r.estado !== 'solucionado')?.id || reportes[0]?.id || ''
   );
   const [demoFeedback, setDemoFeedback] = useState<string | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
+  const [isDemoBusy, setIsDemoBusy] = useState<boolean>(false);
+  const [showSeguridadModal, setShowSeguridadModal] = useState<boolean>(false);
+  const [contrasenaActual, setContrasenaActual] = useState<string>('');
+  const [contrasenaNueva, setContrasenaNueva] = useState<string>('');
+  const [seguridadMensaje, setSeguridadMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const [isGuardandoContrasena, setIsGuardandoContrasena] = useState<boolean>(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [showAyudaModal, setShowAyudaModal] = useState<boolean>(false);
 
   const selectedReporte = reportes.find((r) => r.id === selectedDemoReporteId) || reportes[0];
 
-  const handleAvanzar = () => {
-    if (!selectedDemoReporteId) return;
-    onAvanzarEstadoReporte(selectedDemoReporteId);
-    setDemoFeedback('¡Estado avanzado con éxito y notificación generada!');
+  const mostrarFeedback = (mensaje: string) => {
+    setDemoError(null);
+    setDemoFeedback(mensaje);
     setTimeout(() => setDemoFeedback(null), 3000);
+  };
+
+  const handleAvanzar = async () => {
+    if (!selectedDemoReporteId || isDemoBusy) return;
+    setIsDemoBusy(true);
+    try {
+      await onAvanzarEstadoReporte(selectedDemoReporteId);
+      mostrarFeedback('¡Estado avanzado con éxito y notificación generada!');
+    } catch (error) {
+      setDemoFeedback(null);
+      setDemoError(error instanceof Error ? error.message : 'No fue posible avanzar el estado.');
+    } finally {
+      setIsDemoBusy(false);
+    }
+  };
+
+  const handleRestablecer = async () => {
+    if (isDemoBusy) return;
+    setIsDemoBusy(true);
+    try {
+      await onResetDatos();
+      mostrarFeedback('Datos restablecidos a valores iniciales');
+    } catch (error) {
+      setDemoError(error instanceof Error ? error.message : 'No fue posible restablecer los datos.');
+    } finally {
+      setIsDemoBusy(false);
+    }
+  };
+
+  const handleCambiarContrasena = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isGuardandoContrasena) return;
+    setIsGuardandoContrasena(true);
+    setSeguridadMensaje(null);
+    try {
+      await onCambiarContrasena(contrasenaActual, contrasenaNueva);
+      setSeguridadMensaje({ tipo: 'ok', texto: 'Contraseña actualizada correctamente.' });
+      setContrasenaActual('');
+      setContrasenaNueva('');
+    } catch (error) {
+      setSeguridadMensaje({ tipo: 'error', texto: error instanceof Error ? error.message : 'No fue posible cambiar la contraseña.' });
+    } finally {
+      setIsGuardandoContrasena(false);
+    }
   };
 
   return (
@@ -181,13 +239,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
             )}
 
+            {!modoDemo && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-xl border border-amber-200">
+                El modo demostración está desactivado en el servidor (MODO_DEMO=false).
+              </p>
+            )}
+
             <button
               onClick={handleAvanzar}
-              className="w-full min-h-[44px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-transform active:scale-98"
+              disabled={!modoDemo || isDemoBusy || selectedReporte?.estado === 'solucionado'}
+              className="w-full min-h-[44px] rounded-full bg-[#0A9DC4] hover:bg-[#088ab0] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-transform active:scale-98 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Play className="w-3.5 h-3.5" />
               <span>Avanzar estado del reporte</span>
             </button>
+
+            {selectedReporte?.estado === 'solucionado' && (
+              <p className="text-[11px] text-slate-500 text-center">Este reporte ya está solucionado: el flujo simulado termina aquí.</p>
+            )}
+
+            {demoError && (
+              <div role="alert" className="p-2 bg-red-50 text-red-700 text-[11px] font-semibold rounded-xl text-center border border-red-200">
+                {demoError}
+              </div>
+            )}
 
             {demoFeedback && (
               <div className="p-2 bg-emerald-50 text-emerald-800 text-[11px] font-semibold rounded-xl text-center border border-emerald-200 flex items-center justify-center gap-1.5">
@@ -197,11 +272,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
 
             <button
-              onClick={() => {
-                onResetDatos();
-                setDemoFeedback('Datos restablecidos a valores iniciales');
-                setTimeout(() => setDemoFeedback(null), 2500);
-              }}
+              onClick={handleRestablecer}
+              disabled={!modoDemo || isDemoBusy}
               className="w-full min-h-[38px] rounded-xl text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-white/80 flex items-center justify-center gap-1.5 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -227,7 +299,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <ChevronRight className="w-4 h-4 text-slate-400" />
               </div>
 
-              <div className="p-3.5 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  setSeguridadMensaje(null);
+                  setShowSeguridadModal(true);
+                }}
+                className="w-full p-3.5 flex items-center justify-between text-left hover:bg-slate-50"
+              >
                 <div className="flex items-center gap-3">
                   <Lock className="w-4 h-4 text-slate-500" />
                   <div>
@@ -236,7 +314,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-slate-400" />
-              </div>
+              </button>
             </div>
           </div>
 
@@ -274,10 +352,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </div>
 
-          {/* Logout button (simulated) */}
+          {/* Logout button */}
           <div className="pt-2 pb-4">
             <button
-              onClick={() => alert('Sesión simulada para el piloto de Armenia.')}
+              onClick={onCerrarSesion}
               className="w-full min-h-[44px] text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-2xl transition-colors text-center"
             >
               Cerrar sesión
@@ -307,6 +385,72 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Entendido
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Seguridad: cambio de contraseña */}
+      {showSeguridadModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 animate-fade-in">
+          <form onSubmit={handleCambiarContrasena} className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 text-left shadow-2xl">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-[#0A9DC4]" />
+              <h3 className="text-base font-bold text-slate-900">Cambiar contraseña</h3>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="contrasena-actual" className="text-[11px] font-semibold text-slate-600 block mb-1">Contraseña actual</label>
+                <input
+                  id="contrasena-actual"
+                  type="password"
+                  autoComplete="current-password"
+                  value={contrasenaActual}
+                  onChange={(e) => setContrasenaActual(e.target.value)}
+                  required
+                  className="w-full p-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0A9DC4]"
+                />
+              </div>
+              <div>
+                <label htmlFor="contrasena-nueva" className="text-[11px] font-semibold text-slate-600 block mb-1">Nueva contraseña</label>
+                <input
+                  id="contrasena-nueva"
+                  type="password"
+                  autoComplete="new-password"
+                  value={contrasenaNueva}
+                  onChange={(e) => setContrasenaNueva(e.target.value)}
+                  required
+                  minLength={8}
+                  className="w-full p-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0A9DC4]"
+                />
+                <span className="text-[10px] text-slate-400">Mínimo 8 caracteres, con letras y números.</span>
+              </div>
+            </div>
+            {seguridadMensaje && (
+              <p
+                role="alert"
+                className={`p-2 rounded-xl text-[11px] font-semibold border ${
+                  seguridadMensaje.tipo === 'ok' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'
+                }`}
+              >
+                {seguridadMensaje.texto}
+              </p>
+            )}
+            <div className="space-y-2">
+              <button
+                type="submit"
+                disabled={isGuardandoContrasena}
+                className="w-full min-h-[44px] rounded-full bg-[#0A9DC4] text-white text-xs font-bold disabled:opacity-70"
+              >
+                {isGuardandoContrasena ? 'Guardando…' : 'Guardar contraseña'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSeguridadModal(false)}
+                className="w-full min-h-[40px] text-xs font-semibold text-slate-500 hover:text-slate-800"
+              >
+                Cerrar
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

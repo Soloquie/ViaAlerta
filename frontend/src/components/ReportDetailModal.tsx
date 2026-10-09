@@ -196,7 +196,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             {/* Simulated public entity note */}
             <div className="mt-3.5 p-2 bg-slate-50 rounded-xl border border-slate-200 flex items-start gap-1.5 text-[11px] text-slate-500">
               <Info className="w-3.5 h-3.5 text-[#0A9DC4] shrink-0 mt-0.5" />
-              <span>Prototipo académico: los estados institucionales son simulados para la demostración.</span>
+              <span>Prototipo académico: los estados institucionales son simulados.</span>
             </div>
           </div>
 
@@ -210,7 +210,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             </div>
 
             {/* Community repaired alert if >= 3 people indicated repaired */}
-            {reporte.confirmacionesReparado >= 3 && (
+            {(reporte.comunidadIndicaReparado ?? reporte.confirmacionesReparado >= 3) && (
               <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800 font-semibold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>La comunidad indica que este daño fue reparado.</span>

@@ -1,6 +1,7 @@
 {
   "name": "Reporte Vías",
   "description": "Aplicación ciudadana para reportar daños en las vías, visualizarlos en el mapa interactivo y hacer seguimiento a su estado en Armenia, Quindío.",
-  "requestFramePermissions": ["geolocation"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": [
+    "geolocation"
+  ]
 }

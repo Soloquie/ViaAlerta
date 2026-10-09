@@ -3,6 +3,7 @@ import { AlertTriangle, Phone, Navigation, ArrowRight } from 'lucide-react';
 import { AlertaVial, Reporte } from '../types';
 import { CATEGORIAS, ESTADOS, SEVERIDADES } from '../data/categories';
 import { CategoryIcon } from './categoryIcons';
+import { registrarEvento } from '../api/servicios';
 import { MiniMap } from './MiniMap';
 
 interface NewsViewProps {
@@ -19,7 +20,7 @@ export const NewsView: React.FC<NewsViewProps> = ({
   onSelectAlertaMap,
 }) => {
   // Sort reports with newest first
-  const reportesRecientes = [...reportes].sort((a, b) => b.id.localeCompare(a.id));
+  const reportesRecientes = [...reportes].sort((a, b) => (b.fechaIso ?? '').localeCompare(a.fechaIso ?? ''));
 
   return (
     <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5 bg-white animate-fade-in">
@@ -64,7 +65,10 @@ export const NewsView: React.FC<NewsViewProps> = ({
                 interactive={false}
                 heightClass="h-28"
                 zoom={14}
-                onMapClick={() => onSelectAlertaMap?.(alerta.ubicacion.lat, alerta.ubicacion.lng)}
+                onMapClick={() => {
+                  registrarEvento('alerta_abierta', { alertaId: alerta.id });
+                  onSelectAlertaMap?.(alerta.ubicacion.lat, alerta.ubicacion.lng);
+                }}
               />
             </div>
 
