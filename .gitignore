@@ -7,3 +7,4 @@ backend/uploads/*
 !backend/uploads/seed/.gitkeep
 coverage/
 backend/generated/
+uploads-test/

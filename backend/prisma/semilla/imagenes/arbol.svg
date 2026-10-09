@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 260" width="400" height="260">
+      <rect width="400" height="260" fill="#383b40"/>
+      <!-- Sidewalk curb -->
+      <rect x="0" y="0" width="400" height="70" fill="#7a7e85"/>
+      <rect x="0" y="65" width="400" height="10" fill="#9da1a8"/>
+      <!-- Fallen branch / foliage on lane -->
+      <path d="M 60 150 Q 180 110 320 180" stroke="#5a3825" stroke-width="12" stroke-linecap="round"/>
+      <path d="M 150 135 Q 210 160 270 140" stroke="#4a2e1e" stroke-width="8" stroke-linecap="round"/>
+      <!-- Leaves -->
+      <ellipse cx="140" cy="120" rx="40" ry="25" fill="#2d5a27" opacity="0.85"/>
+      <ellipse cx="230" cy="145" rx="50" ry="30" fill="#3b7a33" opacity="0.85"/>
+      <ellipse cx="280" cy="165" rx="35" ry="22" fill="#2d5a27" opacity="0.85"/>
+      <ellipse cx="180" cy="140" rx="35" ry="20" fill="#4d9a43" opacity="0.85"/>
+      <!-- Street line -->
+      <line x1="0" y1="230" x2="400" y2="230" stroke="#f6cfcf" stroke-dasharray="16 12" stroke-width="4"/>
+      <!-- Label -->
+      <rect x="16" y="16" width="165" height="24" rx="12" fill="#000000" fill-opacity="0.55"/>
+      <text x="98" y="32" font-family="sans-serif" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">Obstáculo / Rama en vía</text>
+    </svg>
