@@ -15,6 +15,7 @@ export function crearApp(opciones: Partial<OpcionesRutas> = {}) {
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cors({ origin: origenesCors, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization'] }));
   app.use(express.json({ limit: '100kb' }));
+  app.use('/uploads/seed', express.static(path.resolve('prisma/semilla/imagenes'), { maxAge: '1d' }));
   app.use('/uploads', express.static(path.resolve(env.DIRECTORIO_UPLOADS), { fallthrough: false, maxAge: '1d' }));
   app.use(
     '/api',
